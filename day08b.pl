@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 #
-# $Id: pl.template,v 1.2 2014/07/18 15:01:38 caran Exp $
-#
 use strict;
 use warnings;
 
