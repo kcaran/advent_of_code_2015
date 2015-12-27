@@ -12,17 +12,18 @@ my $input = read_file( $ARGV[0] );
 
 my $paper = 0;
 
-sub box_surface
+sub ribbon_len
  {
   my ($l, $w, $h) = @_;
-  return 2 * $l * $w + 2 * $w * $h + 2 * $h * $l;
+
+  return min( 2 * ($l + $w), 2 * ($w + $h), 2 * ($h + $l) );
  }
 
-sub box_slack
+sub ribbon_bow
  {
   my ($l, $w, $h) = @_;
 
-  return min( $l * $w, $l * $h, $w * $h );
+  return $l * $w * $h;
  }
 
 while ($input =~ /(\d+)x(\d+)x(\d+)\s*/msg) {
@@ -30,8 +31,8 @@ while ($input =~ /(\d+)x(\d+)x(\d+)\s*/msg) {
   my $width = $2;
   my $height = $3;
   print "$length x $width x $height\n";
-  $paper += box_surface( $length, $width, $height );
-  $paper += box_slack( $length, $width, $height );
+  $paper += ribbon_len( $length, $width, $height );
+  $paper += ribbon_bow( $length, $width, $height );
  }
 
-print "The elves need $paper square feet.\n";
+print "The elves need $paper feet.\n";
