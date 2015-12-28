@@ -6,6 +6,8 @@ use warnings;
 use File::Slurp;
 use List::Util qw( min );
 
+my $debug = 0;
+
 my $input = read_file( $ARGV[0] );
 
 my %wires;
@@ -87,12 +89,15 @@ sub debug
    }
  }
 
-while ($input =~ /(.*?)\s+\-\>\s+(.*?)\s*\n/msg) {
+for (my $i = 0; $i < 30000; $i++) {
+my $input_str = $input;
+while ($input_str =~ /(.*?)\s+\-\>\s+(.*?)\s*\n/msg) {
   my $output = $2;
   my @input = split( /\s+/, $1 );
   parse_circuit( \@input, $output );
-  debug( \@input, $output );
+  debug( \@input, $output ) if ($debug);
  }
+}
 
 for my $wire (sort keys %wires) {
   print "$wire: $wires{ $wire }\n";
