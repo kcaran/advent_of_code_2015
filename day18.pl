@@ -9,8 +9,6 @@ use Data::Dumper;
 
 my $debug = 0;
 
-my @containers = split( '\n', read_file( $ARGV[0] ) );
-
 my $grid;
 
 sub get_initial_state
