@@ -11,8 +11,6 @@ my $debug = 1;
 
 my ($replace, $test) = read_input();
 
-my $grid;
-
 sub read_input
  {
   my $replace;
@@ -51,35 +49,6 @@ sub find_replacements
   return $new_mols;
  }
 
-sub make_molecule
- {
-  my ($replace, $test) = @_;
-  my $steps = 0;
-  my $molecules = [ 'e' ];
+my $new_mols = find_replacements( $replace, $test );
 
-  while (1) {
-    $steps++;
-    print "Now on step $steps\n" if ($debug);
-
-    # Get a list of new molecules
-    my @old_molecules = @{ $molecules };
-    for my $m (@old_molecules) {
-      push @{ $molecules }, keys %{ find_replacements( $replace, $m ) };
-     }
-
-    # Check for a match
-    for my $m (@{ $molecules }) {
-      return $steps if ($m eq $test);
-     }
-   }
-
-  return;
- }
-
-#my $new_mols = find_replacements( $replace, $test );
-
-#print "There are ", scalar keys %{ $new_mols }, " new molecules.\n";
-
-my $steps = make_molecule( $replace, $test );
-
-print "It takes $steps steps to make the molecule\n";
+print "There are ", scalar keys %{ $new_mols }, " new molecules.\n";
