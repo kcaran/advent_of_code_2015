@@ -14,6 +14,8 @@ my $debug = 1;
 
 my @packages = split( '\n', read_file( $ARGV[0] ) );
 
+my $num_packages = scalar @packages;
+
 my $group_weight = 0;
 $group_weight += $_ for (@packages);
 $group_weight = $group_weight / 3;
@@ -45,7 +47,7 @@ sub get_pkg_counts
 #
 sub get_combo_inc
  {
-  my ($combos, $total) = @_;
+  my ($combos, $total, $exact) = @_;
   my $new_combos = [];
 
   # Return an array of single-element arrays - one for each number
@@ -55,7 +57,12 @@ sub get_combo_inc
     for my $c (@{ $combos }) {
       # Only need to add numbers smaller than the smallest in the set
       next if ($i >= $c->[0]);
-      push @{ $new_combos }, [ $i, @{ $c } ];
+      my $combo = [ $i, @{ $c } ];
+      my $weight = group_weight( $combo );
+      if (($exact && $weight == $group_weight)
+       || (!$exact && $weight <= $group_weight)) {
+        push @{ $new_combos }, $combo;
+       }
      }
    }
 
@@ -77,6 +84,17 @@ sub get_combos
   return $combos;
  }
 
+sub count_combos
+ {
+  my ($num) = @_;
+  my $combos = [];
+  for my $i (1 .. $num) {
+    $combos = get_combo_inc( $combos, $num_packages, $i == $num );
+   }
+
+  return $combos;
+ }
+
 sub group_weight
  {
   my $combo = shift;
@@ -88,72 +106,40 @@ sub group_weight
   return $weight;
  }
 
+sub get_c3_packages
+ {
+  my ($c1, $c2) = @_;
+  my $c3;
+
+  my %in_c1 = map { $_ => 1 } @{ $c1 };
+  my %in_c2 = map { $_ => 1 } @{ $c2 };
+  for my $i (0 .. $num_packages - 1) {
+    # Invalid if a number is in both $c1 and $c2
+    return if ($in_c1{ $i } && $in_c2{ $i });
+    push @{ $c3 }, $i if (!$in_c1{ $i } && !$in_c2{ $i });
+   }
+
+  return $c3;
+ }
+
 #
 # Create the sets of packages for the three containers
 #
 sub config_packages
  {
-  my ($num_packages, @config) = @_;
-  my $combos;
+  my ($config, $valid_combos) = @_;
 
-  my $combo_1 = get_combos( $num_packages, $config[0] );
-  for my $c1 (@{ $combo_1 }) {
-    # Ignore combo if not the group weight. If combos go over, ignore rest
-    my $weight = group_weight( $c1 );
-    next if ($weight < $group_weight);
-    last if ($weight > $group_weight);
+  my $combos = [];
 
-    my $config = [];
-    my @array = (0 .. $num_packages - 1);
-    my %in_c1 = map { $_ => 1 } @{ $c1 };
-    my @array_c2 = grep { !$in_c1{ $_ } } @array;
-    my $combo_2 = get_combos( $num_packages - $config[0], $config[1] );
-    my $c2 = [];
-    my $c3 = [];
-    for my $c2_index (@{ $combo_2 }) {
-      # Avoid duplicates
-      next if ($config[0] == $config[1] && $c1->[0] > $c2_index->[0]);
-
-      $c2 = [ map { $array_c2[$_] } @{ $c2_index } ];
-      my $weight = group_weight( $c2 );
-      next if ($weight < $group_weight);
-      last if ($weight > $group_weight);
-
-      my %in_c2 = map { $_ => 1 } @{ $c2 };
-	  $c3 = [ grep { !$in_c2{ $_ } } @array_c2 ];
-
+  for my $c1 (@{ $valid_combos->{ $config->[0] } }) {
+    for my $c2 (@{ $valid_combos->{ $config->[1] } }) {
+      my $c3 = get_c3_packages( $c1, $c2 );
+      next unless $c3;
       push @{ $combos }, [ $c1, $c2, $c3 ];
      }
-   }
+    }
 
   return $combos;
- }
-
-#
-# Test if the containers have the same weight
-#
-sub check_combos
- {
-  my ($packages, $combos) = @_;
-  my @results;
-
-  for my $c (@{ $combos }) {
-    my @c1 = map { $packages->[ $_ ] } @{ $c->[0] };
-    my $c1_wt = 0;
-    $c1_wt += $_ for (@c1);
-    my @c2 = map { $packages->[ $_ ] } @{ $c->[1] };
-    my $c2_wt = 0;
-    $c2_wt += $_ for (@c2);
-    my @c3 = map { $packages->[ $_ ] } @{ $c->[2] };
-    my $c3_wt = 0;
-    $c3_wt += $_ for (@c3);
-
-    if ($c1_wt == $c2_wt && $c1_wt == $c3_wt) {
-      push @results, [ \@c1, \@c2, \@c3 ];
-     }
-   }
- 
-  return @results;
  }
 
 sub smallest_qe_score
@@ -173,16 +159,23 @@ sub smallest_qe_score
   return $min_qe;
  }
 
-my $num_packages = scalar @packages;
-
 my $pkg_counts = get_pkg_counts( $num_packages );
+
+my $valid_combos;
+
+# Get the combos for each number of packages that match the group weight
+for my $i (6 .. $num_packages / 3) {
+  # Hack - I know odd numbers won't work
+  next if ($i % 2);
+  $valid_combos->{ $i } = count_combos( $i );
+  print "$i. There are ", scalar @{ $valid_combos->{ $i } }, " valid combos\n";
+ }
 
 my @results;
 
 for my $config (@{ $pkg_counts }) {
   print "Testing ", join( ', ', @{ $config } ), "...\n";
-  my $combos = config_packages( $num_packages, @{ $config } );
-  push @results, check_combos( \@packages, $combos );
+  push @results, config_packages( $config, $valid_combos );
  }
 
 print Dumper( @results );
