@@ -8,17 +8,19 @@ use warnings;
 
 use File::Slurp;
 use List::Util qw( min );
+use POSIX qw( ceil );
 use Data::Dumper;
 
 my $debug = 1;
 
 my @packages = split( '\n', read_file( $ARGV[0] ) );
+my $num_containers = 3;
 
 my $num_packages = scalar @packages;
 
 my $group_weight = 0;
 $group_weight += $_ for (@packages);
-$group_weight = $group_weight / 3;
+$group_weight = $group_weight / $num_containers;
 die "Illegal package weight" unless ($group_weight == int( $group_weight ));
 
 #
@@ -31,9 +33,9 @@ sub get_pkg_counts
   my $num = shift;
   my $combos;
 
-  die unless ($num >= 3);
-  for (my $i = 1; $i < $num - 3; $i++) {
-    for (my $j = $i; $j < $num - $i - $j; $j++) {
+  die unless ($num >= $num_containers);
+  for (my $i = 1; $i < $num - $num_containers; $i++) {
+    for (my $j = $i; $j <= $num - $i - $j; $j++) {
       my $k = $num - $i - $j;
       push @{ $combos }, [ $i, $j, $k ];
     }
@@ -67,21 +69,6 @@ sub get_combo_inc
    }
 
   return $new_combos;
- }
-
-#
-# Get combos - $total C $num
-#
-sub get_combos
- {
-  my ($total, $num) = @_;
-  my $combos = [];
-
-  for my $i (1 .. $num) {
-    $combos = get_combo_inc( $combos, $total );
-   }
-  
-  return $combos;
  }
 
 sub count_combos
@@ -129,7 +116,7 @@ sub config_packages
  {
   my ($config, $valid_combos) = @_;
 
-  my $combos = [];
+  my $combos;
 
   for my $c1 (@{ $valid_combos->{ $config->[0] } }) {
     for my $c2 (@{ $valid_combos->{ $config->[1] } }) {
@@ -147,13 +134,35 @@ sub smallest_qe_score
   my @results = @_;
 
   my $min_size = @{ $results[0]->[0] };
-  my $min_qe = 1000000;
+  my $min_qe;
+  my $winner;
 
   for my $r (@results) {
     last if (@{ $r->[0] } > $min_size);
     my $qe = 1;
-    $qe *= $_ for (@{ $r->[0] });
-    $min_qe = $qe if ($qe < $min_qe);
+    $qe *= $packages[$_] for (@{ $r->[0] });
+    if (!$min_qe || $qe < $min_qe) {
+      $min_qe = $qe; 
+      $winner = $r;
+     }
+
+    if (@{ $r->[1] } == $min_size) {
+      my $qe = 1;
+      $qe *= $packages[$_] for (@{ $r->[1] });
+      if (!$min_qe || $qe < $min_qe) {
+        $min_qe = $qe;
+        $winner = $r;
+       }
+     }
+
+    if (@{ $r->[2] } == $min_size) {
+      my $qe = 1;
+      $qe *= $packages[$_] for (@{ $r->[2] });
+      if (!$min_qe || $qe < $min_qe) {
+        $min_qe = $qe;
+        $winner = $r;
+       }
+     }
    }
 
   return $min_qe;
@@ -161,10 +170,13 @@ sub smallest_qe_score
 
 my $pkg_counts = get_pkg_counts( $num_packages );
 
+print Dumper( $pkg_counts );
+die;
+
 my $valid_combos;
 
 # Get the combos for each number of packages that match the group weight
-for my $i (6 .. $num_packages / 3) {
+for my $i (2 .. ceil($num_packages / $num_containers)) {
   # Hack - I know odd numbers won't work
   next if ($i % 2);
   $valid_combos->{ $i } = count_combos( $i );
@@ -173,12 +185,20 @@ for my $i (6 .. $num_packages / 3) {
 
 my @results;
 
+my $min_pkg_size = @packages;
+
 for my $config (@{ $pkg_counts }) {
+  # Once we have the minimum package size, we don't have to go further
+  last unless ($config->[0] <= $min_pkg_size);
   print "Testing ", join( ', ', @{ $config } ), "...\n";
-  push @results, config_packages( $config, $valid_combos );
+  my $valids = config_packages( $config, $valid_combos );
+  if ($valids) {
+    $min_pkg_size = $config->[0];
+    push @results, @{ $valids } if ($valids);
+   }
  }
 
-print Dumper( @results );
+#print Dumper( @results );
 
 print "The smallest qe is ", smallest_qe_score( @results ), "\n";
 
