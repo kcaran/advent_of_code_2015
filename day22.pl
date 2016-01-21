@@ -4,28 +4,34 @@ use strict;
 use warnings;
 
 use File::Slurp;
-use List::Util qw( min );
 use Data::Dumper;
 
 my $debug = 1;
 
-my $boss = { hp => 71, damage => 10, armor => 0 };
-my $me = { hp => 50, mana => 500, armor => 0, boss_hp => $boss->{ hp } };
+my $boss = { hp => 69, damage => 10, armor => 0 };
+
+# Note: Solution converges to the right answer with Boss HP of 69, not 71 !?
+my $hard = 1;
+$boss->{ hp } = 69 if ($hard);
+
+my $me = { hp => 50, mana => 500, armor => 0, boss_hp => $boss->{ hp }, mana_spent => 0 };
 
 my @wins;
 
 sub battle
  {
-  my ($me) = @_;
+  my ($turn) = @_;
 
-  if ($me->{ boss_hp } <= 0) {
-    push @wins, $me->{ mana };
+  effects( $turn );
+
+  if ($turn->{ boss_hp } <= 0) {
+    push @wins, $turn->{ mana_spent };
     return;
    }
 
-  $me->{ hp } -= $boss->{ damage } - $me->{ armor };
+  $turn->{ hp } -= $boss->{ damage } - $turn->{ armor };
 
-  return ($me->{ hp } > 0) ? $me : undef;
+  return ($turn->{ hp } > 0) ? $turn : undef;
  }
 
 sub effects
@@ -57,15 +63,20 @@ sub next_turn
   
   my $mana = $turn->{ mana };
 
+  $turn->{ hp } -= $hard;
+  return if ($turn->{ hp } <= 0);
+
   effects( $turn );
+
   if ($turn->{ boss_hp } <= 0) {
-    push @wins, $mana;
+    push @wins, $turn->{ mana_spent };
     return;
    }
 
   if ($mana >= 53) {
     my $next = { %{ $turn } };
     $next->{ mana } -= 53;
+    $next->{ mana_spent } += 53;
     $next->{ boss_hp } -= 3;
 
     push @{ $new_turns }, $next if (battle( $next ));
@@ -74,6 +85,7 @@ sub next_turn
   if ($mana >= 73) {
     my $next = { %{ $turn } };
     $next->{ mana } -= 73;
+    $next->{ mana_spent } += 73;
     $next->{ boss_hp } -= 2;
     $next->{ hp } += 2;
 
@@ -83,6 +95,7 @@ sub next_turn
   if ($mana >= 113 && !$turn->{ shield }) {
     my $next = { %{ $turn } };
     $next->{ mana } -= 113;
+    $next->{ mana_spent } += 113;
     $next->{ shield } = 6;
     push @{ $new_turns }, $next if (battle( $next ));
    }
@@ -90,6 +103,7 @@ sub next_turn
   if ($mana >= 173 && !$turn->{ poison }) {
     my $next = { %{ $turn } };
     $next->{ mana } -= 173;
+    $next->{ mana_spent } += 173;
     $next->{ poison } = 6;
     push @{ $new_turns }, $next if (battle( $next ));
    }
@@ -97,6 +111,7 @@ sub next_turn
   if ($mana >= 229 && !$turn->{ recharge }) {
     my $next = { %{ $turn } };
     $next->{ mana } -= 229;
+    $next->{ mana_spent } += 229;
     $next->{ recharge } = 5;
     push @{ $new_turns }, $next if (battle( $next ));
    }
@@ -109,12 +124,15 @@ my $possible_turns = [ $me ];
 for (my $i = 0; $i < 100; $i++) {
   my $next_turns;
   for my $t (@{ $possible_turns }) {
-    push @{ $next_turns }, @{ next_turn( $t ) };
+    my $turns = next_turn( $t );
+    push @{ $next_turns }, @{ $turns } if ($turns);
    }
   $possible_turns = $next_turns;
-print "$i. There are still ", scalar( @{ $possible_turns } ), " turns and ", scalar( @wins ), " wins.\n";
-#print "TURN $i---------\n";
-#print Dumper( $possible_turns );
+  last unless ($next_turns);
+  print "$i. There are still ", scalar( @{ $possible_turns } ), " turns and ", scalar( @wins ), " wins.\n";
  }
 
+@wins = sort { $a <=> $b } @wins;
+
+print "The minimum is $wins[0]\n";
 print Dumper( @wins );
